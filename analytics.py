@@ -91,11 +91,16 @@ async def compute_market_stats() -> dict:
 # TIME-OF-DAY PERFORMANCE FOR A BOT
 # ═══════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════
+# TIME-OF-DAY PERFORMANCE FOR A BOT
+# ═══════════════════════════════════════════════════════════════
+
 async def bot_time_analysis(bot_id: str) -> dict:
     """
-    Break down a bot's performance by hour of day.
+    Break down a bot's performance by hour of day for ALL time.
     """
-    orders = await db.get_orders_for_bot(bot_id, 50000)
+    # Changed 50000 to None to fetch all historical orders
+    orders = await db.get_orders_for_bot(bot_id, None) 
     resolved = [o for o in orders if o.status in ("WIN", "LOSS", "EARLY_EXIT")]
 
     by_hour = defaultdict(lambda: {"trades": 0, "wins": 0, "pnl": 0.0})
