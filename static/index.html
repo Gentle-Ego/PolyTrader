@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Polymarket Paper Trader v3</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <div class="header">
+      <h1>⚡ Polymarket Paper Trader v3</h1>
+      <div class="status">
+        <div class="sys-stats">
+          <span class="sys-stat" title="Database file size">💾 <span id="stat-db-size">—</span></span>
+          <span class="sys-stat" title="Total snapshots collected">📷 <span id="stat-snapshots">—</span></span>
+          <span class="sys-stat" title="Total resolved markets">📊 <span id="stat-results">—</span></span>
+          <span class="sys-stat" title="Server uptime">⏱ <span id="stat-uptime">—</span></span>
+        </div>
+        <a href="/help" style="color:var(--accent);text-decoration:none;font-weight:600;font-size:13px;margin-right:14px;padding:4px 12px;border-radius:6px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.25);transition:all 0.2s" onmouseover="this.style.background='rgba(167,139,250,0.22)'" onmouseout="this.style.background='rgba(167,139,250,0.12)'">❓ Help</a>
+        <div class="dot" id="ws-dot"></div>
+        <span id="ws-status">Connecting…</span>
+        <span style="margin-left: 14px" id="server-time"></span>
+      </div>
+    </div>
+
+    <div class="dashboard">
+      <!-- Market panels (same as before) -->
+      <div class="card" id="panel-5m">
+        <h2>🔵 Bitcoin 5‑Min Market</h2>
+        <div class="market-grid">
+          <div class="metric">
+            <div class="label">BTC</div>
+            <div class="value neutral" id="btc-5m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Target</div>
+            <div class="value" id="target-5m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Delta%</div>
+            <div class="value" id="delta-5m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Velocity</div>
+            <div class="value" id="vel-5m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Volatility</div>
+            <div class="value" id="vol-5m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Ask UP</div>
+            <div class="value" id="askup-5m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Spread</div>
+            <div class="value" id="sprup-5m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Time</div>
+            <div class="value warn" id="time-5m">—</div>
+          </div>
+        </div>
+        <div class="timer-bar"><div class="fill" id="bar-5m"></div></div>
+      </div>
+      <div class="card" id="panel-15m">
+        <h2>🟣 Bitcoin 15‑Min Market</h2>
+        <div class="market-grid">
+          <div class="metric">
+            <div class="label">BTC</div>
+            <div class="value neutral" id="btc-15m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Target</div>
+            <div class="value" id="target-15m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Delta%</div>
+            <div class="value" id="delta-15m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Velocity</div>
+            <div class="value" id="vel-15m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Volatility</div>
+            <div class="value" id="vol-15m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Ask UP</div>
+            <div class="value" id="askup-15m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Spread</div>
+            <div class="value" id="sprup-15m">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Time</div>
+            <div class="value warn" id="time-15m">—</div>
+          </div>
+        </div>
+        <div class="timer-bar"><div class="fill" id="bar-15m"></div></div>
+      </div>
+
+      <!-- Live Charts Row -->
+      <div class="live-charts-row">
+        <div class="live-chart-box">
+          <h3>🔴 5m Delta & Ask UP (Live)</h3>
+          <canvas id="live-chart-5m"></canvas>
+        </div>
+        <div class="live-chart-box">
+          <h3>🟣 15m Delta & Ask UP (Live)</h3>
+          <canvas id="live-chart-15m"></canvas>
+        </div>
+      </div>
+
+      <!-- Analytics quick-stats -->
+      <div class="card full-row" id="mkt-stats-panel" style="display: none">
+        <h2>📊 Market Statistics</h2>
+        <div class="market-grid" id="mkt-stats-grid"></div>
+        <div style="margin-top: 12px; display: flex; gap: 16px">
+          <div style="flex: 1">
+            <h2 style="margin-bottom: 8px">
+              Condition → Outcome Correlations (5m)
+            </h2>
+            <div id="corr-grid" class="market-grid"></div>
+          </div>
+          <div style="flex: 1; height: 240px; position: relative">
+            <canvas id="history-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bots -->
+      <div class="card full-row">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 8px;
+          "
+        >
+          <h2 style="margin: 0">🤖 Bots</h2>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <button class="btn-ghost btn-sm" onclick="toggleMktStats()">
+              📊 Market Stats
+            </button>
+            <button class="btn-ghost btn-sm" onclick="toggleCompare()">
+              🏆 Leaderboard
+            </button>
+            <button class="btn-ghost btn-sm" onclick="openOptimizer()">
+              🔬 Optimizer
+            </button>
+            <button class="btn-primary btn-sm" onclick="openCreateModal()">
+              + New Bot
+            </button>
+          </div>
+        </div>
+        <div class="bot-search-wrap">
+          <input type="text" id="bot-search" class="bot-search-input" placeholder="🔍 Search bots…" oninput="filterBots()" />
+        </div>
+        <div class="bot-list" id="bot-list">
+          <div
+            style="color: var(--text-dim); text-align: center; padding: 30px"
+          >
+            Loading…
+          </div>
+        </div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div class="card full-row" id="compare-panel" style="display: none">
+        <h2>🏆 Bot Leaderboard</h2>
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>PnL</th>
+              <th>ROI</th>
+              <th>WR</th>
+              <th>PF</th>
+              <th>Sharpe</th>
+              <th>DD</th>
+              <th>Expect.</th>
+              <th>N</th>
+            </tr>
+          </thead>
+          <tbody id="compare-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Market Results -->
+      <div class="card full-row">
+        <h2>📋 Recent Results</h2>
+        <div style="max-height: 260px; overflow-y: auto">
+          <table class="order-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Target</th>
+                <th>Close</th>
+                <th>Δ%</th>
+                <th>Out</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bot Detail -->
+      <div class="card full-row" id="bot-detail-panel" style="display: none">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 6px;
+          "
+        >
+          <h2 style="margin: 0" id="detail-title">Detail</h2>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <button class="btn-ghost btn-sm" onclick="cloneBot()">
+              📋 Clone
+            </button>
+            <button class="btn-ghost btn-sm" onclick="exportCSV()">
+              ⬇ CSV
+            </button>
+            <button class="btn-ghost btn-sm" onclick="showHours()">
+              🕐 Hours
+            </button>
+            <button class="btn-ghost btn-sm" onclick="toggleConfig()">
+              ⚙ Config
+            </button>
+            <button
+              class="btn-warn btn-sm"
+              id="btn-reset"
+              style="display: none"
+              onclick="resetPause()"
+            >
+              🔄 Reset
+            </button>
+            <button class="btn-ghost btn-sm" onclick="closeBotDetail()">
+              ✕
+            </button>
+          </div>
+        </div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 14px;
+          "
+        >
+          <div><div class="market-grid" id="detail-stats"></div></div>
+          <div class="chart-container"><canvas id="equity-chart"></canvas></div>
+        </div>
+        <div
+          id="config-panel"
+          style="
+            display: none;
+            margin-bottom: 14px;
+            background: var(--bg-card2);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            white-space: pre-wrap;
+            color: var(--text-dim);
+            max-height: 220px;
+            overflow-y: auto;
+          "
+        ></div>
+        <div id="hours-panel" style="display: none; margin-bottom: 14px">
+          <h2>Performance by Hour (UTC)</h2>
+          <div class="market-grid" id="hours-grid"></div>
+        </div>
+        <h2>Orders</h2>
+        <div style="max-height: 300px; overflow-y: auto">
+          <table class="order-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Mkt</th>
+                <th>Side</th>
+                <th>Entry</th>
+                <th>Exit</th>
+                <th>Sh</th>
+                <th>$</th>
+                <th>Fee</th>
+                <th>PnL</th>
+                <th>Status</th>
+                <th>Δ@sig</th>
+                <th>Vel@sig</th>
+              </tr>
+            </thead>
+            <tbody id="detail-orders"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CREATE MODAL (same form fields as before, add new ones) -->
+    <div class="modal-overlay" id="create-modal">
+      <div class="modal">
+        <h3>Create New Bot</h3>
+        <div class="form-grid">
+          <div class="form-group form-full">
+            <label>Name</label><input id="f-name" value="My Strategy" />
+          </div>
+          <div class="form-group">
+            <label>Side</label
+            ><select id="f-side">
+              <option value="UP">UP</option>
+              <option value="DOWN">DOWN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Market</label
+            ><select id="f-market">
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+        </div>
+        <h4>⏱ Timing</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Min Entry (s)</label
+            ><input type="number" id="f-min-entry" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Max Entry (s)</label
+            ><input type="number" id="f-max-entry" value="120" />
+          </div>
+          <div class="form-group">
+            <label>Session Start UTC</label
+            ><input type="number" id="f-sess-s" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Session End UTC</label
+            ><input type="number" id="f-sess-e" placeholder="None" />
+          </div>
+        </div>
+        <h4>📈 Filters</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Δ% Min</label
+            ><input type="number" id="f-dmin" value="0.05" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Δ% Max</label
+            ><input type="number" id="f-dmax" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Vel Min</label
+            ><input type="number" id="f-vmin" placeholder="None" step="0.001" />
+          </div>
+          <div class="form-group">
+            <label>Vel Max</label
+            ><input type="number" id="f-vmax" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Volatility Min</label
+            ><input
+              type="number"
+              id="f-volmin"
+              placeholder="None"
+              step="0.001"
+            />
+          </div>
+          <div class="form-group">
+            <label>Volatility Max</label
+            ><input type="number" id="f-volmax" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Ask UP Min</label
+            ><input type="number" id="f-aum" value="0.50" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Ask UP Max</label
+            ><input type="number" id="f-aux" value="0.70" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Ask DN Min</label
+            ><input type="number" id="f-adm" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Ask DN Max</label
+            ><input type="number" id="f-adx" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Spread Max</label
+            ><input
+              type="number"
+              id="f-sprmax"
+              placeholder="None"
+              step="0.01"
+            />
+          </div>
+        </div>
+        <h4>⚙️ Execution</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Fill Delay (s)</label
+            ><input type="number" id="f-fd" value="1" />
+          </div>
+          <div class="form-group">
+            <label>Fee %</label><input type="number" id="f-fee" value="2" />
+          </div>
+          <div class="form-group">
+            <label>Slippage %</label
+            ><input type="number" id="f-slip" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Shares</label><input type="number" id="f-sh" value="1" />
+          </div>
+          <div class="form-group">
+            <label>Multi Orders</label
+            ><select id="f-multi">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Cooldown (s)</label
+            ><input type="number" id="f-cd" value="30" />
+          </div>
+          <div class="form-group">
+            <label>Max/Round</label><input type="number" id="f-mr" value="1" />
+          </div>
+          <div class="form-group">
+            <label>Max Open</label><input type="number" id="f-mo" value="5" />
+          </div>
+        </div>
+        <h4>📏 Adaptive Sizing</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Streak Scaling</label
+            ><select id="f-ss">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Win Bonus Shares</label
+            ><input type="number" id="f-swb" value="0" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>Loss Reduce Shares</label
+            ><input type="number" id="f-slr" value="0" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>Max Shares</label
+            ><input type="number" id="f-maxsh" value="10" />
+          </div>
+        </div>
+        <h4>🛡 Risk</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Balance $</label
+            ><input type="number" id="f-bal" value="100" />
+          </div>
+          <div class="form-group">
+            <label>Max Daily Loss $</label
+            ><input type="number" id="f-mdl" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Max DD %</label
+            ><input type="number" id="f-mdd" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Max Consec Losses</label
+            ><input type="number" id="f-mcl" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Daily Limit</label
+            ><input type="number" id="f-dl" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Max Exposure $</label
+            ><input type="number" id="f-mex" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Auto-disable After N</label
+            ><input type="number" id="f-ada" placeholder="None" />
+          </div>
+          <div class="form-group">
+            <label>Auto-disable ROI &lt;</label
+            ><input type="number" id="f-adr" placeholder="None" />
+          </div>
+        </div>
+        <h4>🚪 Early Exit</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Enable</label
+            ><select id="f-ee">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>TP Bid ≥</label
+            ><input type="number" id="f-tp" placeholder="0.90" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>SL Bid ≤</label
+            ><input type="number" id="f-sl" placeholder="0.20" step="0.01" />
+          </div>
+        </div>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+            justify-content: flex-end;
+          "
+        >
+          <button class="btn-ghost" onclick="closeCreateModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitBot()">🚀 Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTIMIZER MODAL -->
+    <div class="modal-overlay" id="opt-modal">
+      <div class="modal" style="width: 720px">
+        <h3>🔬 Strategy Optimizer</h3>
+        <p style="font-size: 12px; color: var(--text-dim); margin-bottom: 14px">
+          Define parameter ranges below. The optimizer will generate
+          combinations, backtest each against your stored historical data, and
+          rank the winners.
+        </p>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Base Side</label
+            ><select id="o-side">
+              <option value="UP">UP</option>
+              <option value="DOWN">DOWN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Market</label
+            ><select id="o-mkt">
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Method</label
+            ><select id="o-method">
+              <option value="grid">Grid Search</option>
+              <option value="random">Random</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Max Combos</label
+            ><input type="number" id="o-max" value="100" />
+          </div>
+          <div class="form-group">
+            <label>Rank By</label
+            ><select id="o-rank">
+              <option value="net_pnl">Net PnL</option>
+              <option value="sharpe_ratio">Sharpe</option>
+              <option value="profit_factor">Profit Factor</option>
+              <option value="expectancy">Expectancy</option>
+              <option value="roi_pct">ROI %</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Min Orders</label
+            ><input type="number" id="o-minord" value="5" />
+          </div>
+          <div class="form-group">
+            <label>Days Back (Memory)</label
+            ><input type="number" id="o-days" value="7" />
+          </div>
+        </div>
+        <h4>Parameter Ranges (leave blank to use default)</h4>
+        <div class="form-grid" style="font-size: 11px">
+          <div class="form-group">
+            <label>delta_pct_min: from,to,step</label
+            ><input id="o-dmin" placeholder="0.01,0.15,0.02" />
+          </div>
+          <div class="form-group">
+            <label>ask_up_min: from,to,step</label
+            ><input id="o-aumin" placeholder="0.40,0.60,0.05" />
+          </div>
+          <div class="form-group">
+            <label>ask_up_max: from,to,step</label
+            ><input id="o-aumax" placeholder="0.60,0.80,0.05" />
+          </div>
+          <div class="form-group">
+            <label>max_entry_time_s: values</label
+            ><input id="o-met" placeholder="60,90,120,180" />
+          </div>
+          <div class="form-group">
+            <label>min_entry_time_s: values</label
+            ><input id="o-miet" placeholder="0,10,20,30" />
+          </div>
+          <div class="form-group">
+            <label>spread_max: from,to,step</label
+            ><input id="o-spr" placeholder="0.05,0.20,0.05" />
+          </div>
+        </div>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+            justify-content: flex-end;
+          "
+        >
+          <button class="btn-ghost" onclick="closeOptimizer()">Cancel</button>
+          <button class="btn-primary" onclick="runOptimizer()">
+            🔬 Run Backtest
+          </button>
+        </div>
+        <div id="opt-results" style="display: none; margin-top: 16px">
+          <h4 style="border: none; padding: 0; margin: 8px 0">Results</h4>
+          <div
+            id="opt-summary"
+            style="font-size: 12px; color: var(--text-dim); margin-bottom: 8px"
+          ></div>
+          <div style="max-height: 350px; overflow-y: auto">
+            <table class="order-table" id="opt-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>PnL</th>
+                  <th>ROI</th>
+                  <th>WR</th>
+                  <th>PF</th>
+                  <th>Sharpe</th>
+                  <th>DD</th>
+                  <th>Expect.</th>
+                  <th>N</th>
+                  <th>Key Params</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="opt-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
