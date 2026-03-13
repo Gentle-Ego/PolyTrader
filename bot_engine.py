@@ -29,10 +29,15 @@ async def boot():
     bots = bot_storage.load_all()
     for b in bots:
         _register_runtime(b)
+    
     for bot_id, bot in _bots.items():
-        orders = await db.get_orders_for_bot(bot_id, 50000)
+        # Fetch ALL orders (limit=None)
+        orders = await db.get_orders_for_bot(bot_id, None) 
+        
         bal = bot.balance; peak = bot.balance; cl = 0; cw = 0
-        for o in sorted(orders, key=lambda x: x.ts_signal):
+        
+        # REMOVED sorted() - The DB already sorted them for us!
+        for o in orders:
             if o.status == OrderStatus.RESOLVED_WIN:
                 bal = bal - o.cost - o.fee + o.shares * SHARE_PAYOUT
                 cl = 0; cw += 1
@@ -45,20 +50,26 @@ async def boot():
                 else: cl += 1; cw = 0
             elif o.status == OrderStatus.FILLED:
                 bal -= (o.cost + o.fee)
+            
             peak = max(peak, bal)
             _round_orders[bot_id][(o.epoch, o.market_type)] = \
                 _round_orders[bot_id].get((o.epoch, o.market_type), 0) + 1
         
+        # Logic Fix: If 'orders' is everything, we don't need to fetch 'today_ords' 
+        # separately to calculate resolved counts. This saves a DB hit.
+        resolved = [o for o in orders if o.status in (OrderStatus.RESOLVED_WIN, OrderStatus.RESOLVED_LOSS, OrderStatus.EARLY_EXIT)]
+        
+        # We still need today_ords for the daily limit/loss tracking
         today_ords = await db.get_orders_for_bot_today(bot_id)
         _orders_today[bot_id] = len(today_ords)
         _loss_today[bot_id] = sum(abs(o.pnl) for o in today_ords if o.status in (OrderStatus.RESOLVED_LOSS, OrderStatus.EARLY_EXIT) and o.pnl < 0)
-        resolved = [o for o in set(orders + today_ords) if o.status in (OrderStatus.RESOLVED_WIN, OrderStatus.RESOLVED_LOSS, OrderStatus.EARLY_EXIT)]
+        
         _total_resolved_orders[bot_id] = len(resolved)
-
         _balances[bot_id] = bal; _peak_balances[bot_id] = peak
         _consecutive_losses[bot_id] = cl; _consecutive_wins[bot_id] = cw
-        log.info(f"Loaded «{bot.name}» bal=${bal:.2f} streak=+{cw}/-{cl}")
-
+        
+        log.info(f"Loaded «{bot.name}» (Lifetime) bal=${bal:.2f} streak=+{cw}/-{cl}")
+    
 
 def _register_runtime(cfg):
     _bots[cfg.id] = cfg
@@ -340,7 +351,9 @@ async def compute_stats(bot_id):
 
     bot = _bots.get(bot_id)
     if not bot: return None
-    orders = await db.get_orders_for_bot(bot_id, 50000)
+    
+    # Fetch all orders for lifetime stats
+    orders = await db.get_orders_for_bot(bot_id, None)
     today_ords = await db.get_orders_for_bot_today(bot_id)
 
     resolved = [o for o in orders if o.status in (OrderStatus.RESOLVED_WIN, OrderStatus.RESOLVED_LOSS, OrderStatus.EARLY_EXIT)]
@@ -393,6 +406,6 @@ async def compute_stats(bot_id):
         current_streak=streak, best_streak=best, worst_streak=worst,
         orders_today=len(today_ords), loss_today=round(tl, 4),
         consecutive_losses=_consecutive_losses.get(bot_id, 0),
-        orders=orders[:50], config=bot.model_dump())
+        orders=orders[-50:], config=bot.model_dump())
     _stats_cache[bot_id] = stats
     return stats
