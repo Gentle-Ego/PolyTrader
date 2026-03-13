@@ -188,9 +188,17 @@ def _row_to_order(r) -> PaperOrder:
 
 async def get_orders_for_bot(bot_id, limit=500):
     db = await get_db()
-    cur = await db.execute(
-        "SELECT * FROM orders WHERE bot_id=? ORDER BY ts_signal DESC LIMIT ?",
-        (bot_id, limit))
+    # If limit is None or 0, fetch everything
+    if not limit:
+        cur = await db.execute(
+            "SELECT * FROM orders WHERE bot_id=? ORDER BY ts_signal ASC",
+            (bot_id,))
+    else:
+        # Note: Changed to ASC here so the oldest come first, 
+        # making the PnL loop in boot() work correctly.
+        cur = await db.execute(
+            "SELECT * FROM orders WHERE bot_id=? ORDER BY ts_signal ASC LIMIT ?",
+            (bot_id, limit))
     return [_row_to_order(r) for r in await cur.fetchall()]
 
 async def get_pending_orders():
